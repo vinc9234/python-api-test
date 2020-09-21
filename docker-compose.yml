@@ -1,0 +1,55 @@
+#
+# Docker setups to test and develop this application.
+#
+# Build and run all tests via docker-compose up test
+version: '3.0'
+services:
+
+  test:
+    build: .
+    volumes:
+    - .:/code:z
+    working_dir: /code
+    links:
+      - mongo
+    entrypoint: /bin/sh
+    command: -c 'pip install tox && tox'
+
+  test-oas:
+    image: stoplight/spectral
+    volumes:
+      - .:/code:z
+    working_dir: /code
+    command: lint -r https://teamdigitale.github.io/api-oas-checker/spectral.yml openapi/store.yaml
+
+  dev:
+    build: .
+    links:
+      - mongo
+    environment:
+      MONGO_HOST: mongo
+      MONGO_USER: root
+      MONGO_PASSWORD: secret
+    volumes:
+      - .:/code
+    command: tail -f /etc/hosts
+
+  api:
+    build: .
+    links:
+      - mongo
+    environment:
+      MONGO_HOST: mongo
+      MONGO_USER: root
+      MONGO_PASSWORD: secret
+    volumes:
+    - .:/code
+    ports:
+    - "5000:5000"
+    - "8443:8443"
+
+  mongo:
+    image: mongo
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: secret

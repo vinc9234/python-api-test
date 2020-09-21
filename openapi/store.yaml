@@ -1,0 +1,355 @@
+---
+#
+# Questo e' un progetto d'esempio in formato OpenAPI 3.0 API Starter Kit.
+#
+# Stai per sviluppare un API? Segui attentamente questo template e
+#   potrai integrarla facilmente in Developers Italia.
+#
+x-commons:
+  uuid: &uuid 8d549ad5-950d-4b35-b85b-64712a57397b
+  ts: &timestamp 2018-12-30T12:23:32Z
+  ratelimit-headers: &ratelimit-headers
+    X-RateLimit-Limit:
+      $ref: '#/components/headers/X-RateLimit-Limit'
+    X-RateLimit-Remaining:
+      $ref: '#/components/headers/X-RateLimit-Remaining'
+    X-RateLimit-Reset:
+      $ref: '#/components/headers/X-RateLimit-Reset'
+  common-responses: &common-responses
+    '400':
+      $ref: '#/components/responses/400BadRequest'
+    '429':
+      $ref: '#/components/responses/429TooManyRequests'
+    '503':
+      $ref: '#/components/responses/503ServiceUnavailable'
+    default:
+      $ref: '#/components/responses/default'
+
+openapi: 3.0.0
+info:
+  version: "1.0.0"
+  # Il `title` e' il nome del tuo prodotto/servizio!
+  # E' la prima cosa ad apparire in pagine web e cataloghi.
+  # Dev'essere chiaro e conciso.
+  title: |-
+    Store API.
+  x-summary: >-
+    Questo servizio permette di salvare e recuperare dei semplici oggetti.
+  description: |
+    #### Documentazione
+    Il servizio Store permette di salvare e recuperare dei dati ritornando il timestamp di inserimento.
+
+    Questo servizio può essere erogato in due modalità:
+
+    - effimera, salvando i dati in memoria;
+    - persistente, utilizzando un datastore mongodb;
+
+    ##### A cosa serve?
+
+    Questa API permette di sperimentare l'implementazione e l'utilizzo
+    di servizi REST e dei metodi GET per il recupero delle informazioni
+    e POST per l'archiviazione di dati.
+
+    ##### Come funziona?
+
+    Attraverso le operazioni esposte:
+
+    - get_item, get_items: recupera uno o più oggetti
+    - post_item: aggiunge un oggetto allo store aggiungendo un set di metadati
+
+    L'operazione `get_status` permette di visualizzare lo stato del servizio.
+
+    #### Note
+
+    Il servizio non richiede autenticazione, ma va' usato rispettando gli
+    header di throttling esposti in conformita' alle Linee Guida del Modello di interoperabilita'.
+
+    #### Informazioni tecniche ed esempi
+
+    Esempio:
+
+    ```
+    http http://localhost:8443/store/v1/echo
+    {
+      'datetime': '2018-12-30T12:23:32Z'
+    }
+    ```
+
+  # I termini del servizio contengono un riferimento
+  #   a tutte le indicazioni e le note legali per l'utilizzo
+  #   del servizio, inclusi gli eventuali riferimenti utili al GDPR.
+  termsOfService: 'http://swagger.io/terms/'
+  # Chi posso contattare per informazioni sul servizio e sul suo stato?
+  contact:
+    email: robipolli@gmail.com
+    name: Roberto Polli
+    url: https://twitter.com/ioggstream
+  # L'audience delle API. Attualmente e' definito solamente
+  #   la tipologia `public`.
+  x-audience:
+    - public
+  # Ogni API deve avere un UUID, invariante nel tempo e
+  #   rispetto al `title`.
+  x-api-id: 00000000-0000-0000-0000-000000000000
+  license:
+    name: Apache 2.0
+    url: 'http://www.apache.org/licenses/LICENSE-2.0.html'
+# Una lista di `tag` utili a raggruppare le varie operazioni
+#   eseguite dalle API. Ogni `tag` puo' referenziare un link
+#   alla sua descrizione.
+tags:
+  - name: private
+    description: Store data
+  - name: public
+    description: Retrieve data
+    externalDocs:
+      url: http://docs.my-api.com/pet-operations.htm
+# Uno o piu' server di erogazione.
+#   Puo' essere utile indicare gli indirizzi di collaudo,
+#   sviluppo e test.
+servers:
+  - description: Development server
+    url: https://localhost:8443/store/v1
+  - description: Test server
+    url: https://api.example.com/store/v1
+
+
+#
+# Qui vanno tutti i path.
+#
+paths:
+  /items:
+    get:
+      tags:
+        - public
+      description: |-
+        Recupera una lista di oggetti dallo store:
+        di default ritorna 10 entry, ed il limite massimo di entry ritornate è 100.
+
+        Accetta i parametri `limit` e `cursor` per la paginazione.
+      operationId: api.get_items
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            $ref: '#/components/schemas/Limit'
+        - name: cursor
+          in: query
+          schema:
+            $ref: '#/components/schemas/Uuid'
+      responses:
+        '200':
+          description: Una lista di oggetti presenti nello store
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - items
+                  - count
+                  - limit
+                  - cursor
+                properties:
+                  count:
+                    $ref: '#/components/schemas/Limit'
+                  limit:
+                    $ref: '#/components/schemas/Limit'
+                  offset:
+                    $ref: '#/components/schemas/Uuid'
+                  items:
+                    type: array
+                    maxItems: 100
+                    items:
+                      $ref: '#/components/schemas/Item'
+                example:
+                  limit: 2
+                  count: 2
+                  cursor: *uuid
+                  items:
+                    - item: {a: 1, b: ciao}
+                      timestamp: "2020-10-01T00:00:00Z"
+                      id: *uuid
+                    - item: {a: 1, b: ciao,}
+                      timestamp: "2020-10-01T00:00:00Z"
+                      id: *uuid
+    post:
+      summary: Inserisce un oggetto nello store
+      operationId: api.post_items
+      description: |
+        Inserisce un oggetto nello store. In caso positivo ritorna
+        l'url dove recuperarlo.
+      tags:
+      - public
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties:
+                anyOf:
+                - type: integer
+                  format: int64
+                - type: string
+      responses:
+        <<: *common-responses
+        '201':
+          links:
+            get_uuid:
+              operationId: api.get_item
+              # or
+              # operationRef: '#/paths/~1users~1{userId}/get'
+              parameters:
+                uuid: '$response.body#/id'
+          description: |
+            L'oggetto è stato aggiunto correttamente nello store
+            Il percorso dell'oggetto viene ritornato nell'header
+            `Location`
+          headers:
+            <<: *ratelimit-headers
+            Location:
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ItemStatus'
+
+  /item/{uuid}:
+    parameters:
+      - name: uuid
+        schema:
+          $ref: '#/components/schemas/Uuid'
+        required: true
+        in: path
+    get:
+      summary: Ritorna l'oggetto archiviato nello store.
+      description: |
+        Ritorna un oggetto archiviato nello store insieme al timestamp di archiviazione.
+      operationId: api.get_item
+      tags:
+        - public
+      responses:
+        <<: *common-responses
+        '200':
+          description: |
+            Il server ha ritornato l'oggetto.
+          # Questi header di throttling sono obbligatori e definiti
+          #   nel Nuovo modello di interoperabilità.
+          headers:
+            <<: *ratelimit-headers
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Item'
+  /status:
+    get:
+      summary: Ritorna lo stato dell'applicazione.
+      description: |
+        Ritorna lo stato dell'applicazione. A scopo
+        di test, su base randomica puo' ritornare
+        un errore.
+      operationId: api.get_status
+      tags:
+        - public
+      responses:
+        <<: *common-responses
+        '200':
+          description: |
+            Il server ha ritornato lo status. In caso di problemi
+            ritorna sempre un problem+json.
+          # Questi header di throttling sono obbligatori e definiti
+          #   nel Nuovo modello di interoperabilità.
+          headers:
+            <<: *ratelimit-headers
+            Cache-Control:
+              $ref: '#/components/headers/Cache-Control'
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+
+components:
+
+  headers:
+    Cache-Control:
+      schema:
+        type: string
+    X-RateLimit-Limit:
+      $ref: 'https://teamdigitale.github.io/openapi/0.0.5/definitions.yaml#/headers/X-RateLimit-Limit'
+    X-RateLimit-Remaining:
+      $ref: 'https://teamdigitale.github.io/openapi/0.0.5/definitions.yaml#/headers/X-RateLimit-Remaining'
+    X-RateLimit-Reset:
+      $ref: 'https://teamdigitale.github.io/openapi/0.0.5/definitions.yaml#/headers/X-RateLimit-Reset'
+    Retry-After:
+      $ref: 'https://teamdigitale.github.io/openapi/0.0.5/definitions.yaml#/headers/Retry-After'
+
+  responses:
+    # Predefined error codes for this API
+    400BadRequest:
+      $ref: 'https://teamdigitale.github.io/openapi/0.0.5/definitions.yaml#/responses/400BadRequest'
+    404NotFound:
+      $ref: 'https://teamdigitale.github.io/openapi/0.0.5/definitions.yaml#/responses/404NotFound'
+    429TooManyRequests:
+      $ref: 'https://teamdigitale.github.io/openapi/0.0.5/definitions.yaml#/responses/429TooManyRequests'
+    503ServiceUnavailable:
+      $ref: 'https://teamdigitale.github.io/openapi/0.0.5/definitions.yaml#/responses/503ServiceUnavailable'
+    default:
+      $ref: 'https://teamdigitale.github.io/openapi/0.0.5/definitions.yaml#/responses/default'
+
+  schemas:
+    Limit:
+        type: integer
+        format: int32
+        minimum: 1
+        maximum: 100
+        default: 10
+        example: 10
+
+    Uuid:
+      type: string
+      format: uuid
+      example: *uuid
+
+
+    ItemStatus:
+      type: object
+      properties:
+        status:
+          type: string
+          enum:
+            - success
+            - failure
+        url:
+          type: string
+          pattern: 'https?://.*'
+          example: http://127.0.0.1:4010/item/8d549ad5-950d-4b35-b85b-64712a57397b
+        id:
+          $ref: '#/components/schemas/Uuid'
+      example:
+        status: success
+        url: >-
+          http://localhost:5000/item/8d549ad5-950d-4b35-b85b-64712a57397b
+        id: *uuid
+    Item:
+      type: object
+      required:
+        - item
+        - timestamp
+      properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
+        item:
+          type: object
+        timestamp:
+          type: string
+          format: date-time
+          example: '2018-12-30T12:23:32Z'
+      example:
+        item:
+          a: 1
+          b: ciao
+        timestamp: >-
+          2018-12-30T12:23:32Z
+    Problem:
+      $ref: 'https://teamdigitale.github.io/openapi/0.0.5/definitions.yaml#/schemas/Problem'
